@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  wg-api:
+    build: .
+    container_name: wireguard-provisioner
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - /etc/wireguard:/etc/wireguard
+      - ./wireguard.db:/app/wireguard.db
+    environment:
+      - WG_INTERFACE=wg0
+      - SERVER_PUBLIC_KEY=YOUR_SERVER_PUBLIC_KEY_HERE
+      - SERVER_ENDPOINT=YOUR_SERVER_IP:51820
+      - DNS_SERVERS=1.1.1.1, 8.8.8.8
+      - SUBNET=10.10.0.0/24
+    restart: unless-stopped
