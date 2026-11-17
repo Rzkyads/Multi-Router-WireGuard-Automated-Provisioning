@@ -2,7 +2,7 @@ import requests
 import streamlit as st
 
 st.set_page_config(
-    page_title="Cyaneum WireGuard NCM",
+    page_title="Cyaneum WGC",
     page_icon="🌐",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -56,8 +56,8 @@ if not st.session_state.logged_in:
     with col2:
         st.markdown(
             "<div style='text-align: center; margin-top: 3rem;'><h1"
-            " style='color: #38bdf8;'>🌐 Cyaneum NCM</h1><p"
-            " style='color: #94a3b8;'>Secure WireGuard Management System</p></div>",
+            " style='color: #38bdf8;'>🌐 Cyaneum WGC</h1><p"
+            " style='color: #94a3b8;'>WireGuard Control & Provisioning System</p></div>",
             unsafe_allow_html=True,
         )
 
@@ -116,8 +116,8 @@ st.markdown(
     f"""
     <div class="main-header" style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <p class="main-title">🌐 Cyaneum Network Management</p>
-            <p class="sub-title">Multi-Router WireGuard Automated Provisioning & Client Dashboard</p>
+            <p class="main-title">🌐 Cyaneum WGC</p>
+            <p class="sub-title">WireGuard Control & Provisioning System</p>
         </div>
         <div style="text-align: right;">
             <span style="color: #38bdf8; font-weight: 600;">👤 {st.session_state.username}</span> 
