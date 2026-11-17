@@ -18,3 +18,11 @@ class ProvisionRequest(BaseModel):
     client_name: str
     private_key: str
     router_id: int
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str

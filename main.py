@@ -4,6 +4,22 @@ from sqlalchemy.exc import IntegrityError
 import database, models, schemas, wg_service
 from crypto_helper import encrypt
 from fastapi.middleware.cors import CORSMiddleware
+import bcrypt
+
+def get_password_hash(password: str) -> str:
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+    )
+
+def log_activity(db: Session, username: str, action: str, details: str = None, ip_address: str = None):
+    log = models.AuditLog(username=username, action=action, details=details, ip_address=ip_address)
+    db.add(log)
+    db.commit()
 
 models.Base.metadata.create_all(bind=database.engine)
 app = FastAPI(title="Cyaneum WireGuard Multi-Router NCM", version="2.0")
@@ -42,6 +58,7 @@ def register_router(router_in: schemas.RouterCreate, db: Session = Depends(get_d
         db.add(db_router)
         db.commit()
         db.refresh(db_router)
+        log_activity(db, "SYSTEM", "REGISTER_ROUTER", f"Router {router_in.router_name} registered")
         return db_router
     except IntegrityError:
         db.rollback()
@@ -66,6 +83,7 @@ def delete_router(router_id: int, db: Session = Depends(get_db)):
 
     db.delete(router)
     db.commit()
+    log_activity(db, "SYSTEM", "DELETE_ROUTER", f"Router ID {router_id} deleted")
     return {"message": "Router berhasil dihapus."}
 
 @app.post("/api/v1/routers/{router_id}/test-connection")
@@ -128,6 +146,8 @@ def generate_client(data: schemas.ProvisionRequest, db: Session = Depends(get_db
     
     config_text = wg_service.generate_config_text(data.private_key, allocated_ip, router)
     
+    log_activity(db, "SYSTEM", "PROVISION_CLIENT", f"Client {data.client_name} provisioned on {router.router_name}")
+    
     return {
         "client_name": db_client.client_name,
         "client_ip": allocated_ip,
@@ -151,4 +171,75 @@ def revoke_client(client_id: int, db: Session = Depends(get_db)):
 
     db.delete(client)
     db.commit()
+    log_activity(db, "SYSTEM", "REVOKE_CLIENT", f"Client ID {client_id} revoked")
     return {"message": "Client revoked successfully and IP recycled."}
+
+# --- AUTH & USER MANAGEMENT ENDPOINTS ---
+
+@app.post("/api/v1/auth/register")
+def register_user(data: schemas.UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.User).filter(models.User.username == data.username).first()
+    if existing:
+        raise HTTPException(400, "Username sudah terdaftar.")
+
+    user_count = db.query(models.User).count()
+    is_first = (user_count == 0)
+
+    new_user = models.User(
+        username=data.username,
+        password_hash=get_password_hash(data.password),
+        role="root" if is_first else "user",
+        is_approved=True if is_first else False
+    )
+    db.add(new_user)
+    db.commit()
+
+    log_activity(db, data.username, "REGISTER", "Akun didaftarkan" + (" (Auto-Root)" if is_first else " (Menunggu Approval)"))
+    return {
+        "message": "Registrasi berhasil! Silakan tunggu approval dari Root Admin." if not is_first else "Registrasi berhasil sebagai Root Admin!"
+    }
+
+@app.post("/api/v1/auth/login")
+def login_user(data: schemas.UserLogin, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == data.username).first()
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(400, "Username atau password salah.")
+
+    if not user.is_approved:
+        raise HTTPException(403, "Akun Anda belum disetujui oleh Root Admin. Silakan hubungi administrator.")
+
+    log_activity(db, user.username, "LOGIN", "Berhasil masuk ke sistem")
+    return {
+        "username": user.username,
+        "role": user.role,
+        "message": "Login berhasil"
+    }
+
+@app.get("/api/v1/users")
+def list_users(db: Session = Depends(get_db)):
+    return db.query(models.User).all()
+
+@app.put("/api/v1/users/{user_id}/approve")
+def approve_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User tidak ditemukan.")
+    user.is_approved = True
+    db.commit()
+    log_activity(db, "SYSTEM", "APPROVE_USER", f"User {user.username} approved")
+    return {"message": f"User {user.username} berhasil disetujui."}
+
+@app.delete("/api/v1/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User tidak ditemukan.")
+    username = user.username
+    db.delete(user)
+    db.commit()
+    log_activity(db, "SYSTEM", "DELETE_USER", f"User {username} deleted")
+    return {"message": "User berhasil dihapus."}
+
+@app.get("/api/v1/audit-logs")
+def get_audit_logs(db: Session = Depends(get_db)):
+    return db.query(models.AuditLog).order_by(models.AuditLog.timestamp.desc()).limit(100).all()
