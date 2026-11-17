@@ -26,3 +26,7 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+class LicenseActivateRequest(BaseModel):
+    username: str
+    key_string: str

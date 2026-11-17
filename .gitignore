@@ -11,6 +11,7 @@ venv/
 
 # Database
 wireguard.db
+generator_master.py
 
 # OS
 .DS_Store

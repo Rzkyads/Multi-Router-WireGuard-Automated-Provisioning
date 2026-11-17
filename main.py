@@ -121,6 +121,12 @@ def generate_client(data: schemas.ProvisionRequest, db: Session = Depends(get_db
     if not router:
         raise HTTPException(status_code=404, detail="Target MikroTik router not found.")
 
+    user = db.query(models.User).filter(models.User.username == "admin").first() # Simplified assumption for context
+    if user and user.tier == "trial":
+        total_clients = db.query(models.Client).count()
+        if total_clients >= 2:
+            raise HTTPException(status_code=403, detail="Batas versi Trial tercapai (Maksimal 2 Klien).")
+
     if wg_service.settings.SIMULATION_MODE:
         public_key = f"MOCK_PUBKEY_{data.client_name.upper().replace(' ', '_')}_123="
     else:
@@ -212,8 +218,23 @@ def login_user(data: schemas.UserLogin, db: Session = Depends(get_db)):
     return {
         "username": user.username,
         "role": user.role,
+        "tier": user.tier,
         "message": "Login berhasil"
     }
+
+@app.post("/api/v1/auth/activate-license")
+def activate_license(data: schemas.LicenseActivateRequest, db: Session = Depends(get_db)):
+    license_obj = db.query(models.License).filter(models.License.key_string == data.key_string, models.License.is_active == True).first()
+    if not license_obj:
+        raise HTTPException(status_code=400, detail="License Key tidak valid atau sudah tidak aktif.")
+
+    user = db.query(models.User).filter(models.User.username == data.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan.")
+    
+    user.tier = license_obj.tier
+    db.commit()
+    return {"message": "Lisensi berhasil diaktifkan!", "tier": user.tier}
 
 @app.get("/api/v1/users")
 def list_users(db: Session = Depends(get_db)):

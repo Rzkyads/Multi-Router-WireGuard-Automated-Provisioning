@@ -33,6 +33,17 @@ class User(Base):
     role = Column(String, default="user")  # 'root' or 'user'
     is_approved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
+    tier = Column(String, default="trial")
+
+class License(Base):
+    __tablename__ = "licenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key_string = Column(String, unique=True, index=True, nullable=False)
+    tier = Column(String, default="enterprise")
+    max_clients = Column(Integer, default=999999)
+    max_routers = Column(Integer, default=999999)
+    is_active = Column(Boolean, default=True)
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

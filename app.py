@@ -15,6 +15,7 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
     st.session_state.role = ""
+    st.session_state.tier = "trial"
 
 # --- STYLING CSS KUSTOM MODERN OCEAN & DUSK ---
 st.markdown(
@@ -125,6 +126,7 @@ if not st.session_state.logged_in:
                         st.session_state.logged_in = True
                         st.session_state.username = data["username"]
                         st.session_state.role = data["role"]
+                        st.session_state.tier = data.get("tier", "trial")
                         st.success("Login berhasil!")
                         st.rerun()
                     else:
@@ -192,11 +194,35 @@ st.markdown(
 )
 
 # Tombol Logout di sidebar kecil
-if st.sidebar.button("🚪 Keluar (Logout)") :
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.role = ""
-    st.rerun()
+with st.sidebar:
+    if st.button("🚪 Keluar (Logout)"):
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.role = ""
+        st.session_state.tier = "trial"
+        st.rerun()
+
+    st.markdown("---")
+    st.markdown("### 🛡️ Lisensi Sistem")
+    st.info(f"Status: **{st.session_state.tier.upper()} Tier**" + (" (Limit: Max 2 Klien)" if st.session_state.tier == "trial" else ""))
+
+    if st.session_state.tier == "trial":
+        with st.form("activation_form"):
+            input_key = st.text_input("Masukkan License Key", type="password")
+            submit_activation = st.form_submit_button("Aktifkan Full Version")
+
+        if submit_activation:
+            if input_key:
+                try:
+                    res = requests.post(f"{API_BASE}/auth/activate-license", json={"username": st.session_state.username, "key_string": input_key})
+                    if res.status_code == 200:
+                        st.success("🎉 Lisensi Berhasil Diaktifkan! Silakan muat ulang.")
+                        st.session_state.tier = res.json().get("tier")
+                        st.rerun()
+                    else:
+                        st.error(res.json().get("detail", "Key tidak valid."))
+                except Exception as e:
+                    st.error(f"Koneksi error: {str(e)}")
 
 # Navigasi Tab Utama
 tabs_list = [
